@@ -1,17 +1,19 @@
 import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import process from 'node:process'
+import { copyHtmlToClipboard } from './clipboard/index.js'
 import { loadStyleConfig } from './config.js'
 import { loadMdModules } from './core-loader.js'
 import { renderToWechatHtml } from './render-service.js'
 
 function usage() {
   return [
-    `Usage: md-stdio --file /path/to/article.md [--style /path/to/style.json]`,
+    `Usage: md-stdio --file /path/to/article.md [--style /path/to/style.json] [--copy]`,
     ``,
     `Options:`,
     `  --file   Markdown 文件路径`,
     `  --style  样式配置 JSON 路径`,
+    `  --copy   复制最终 HTML 到 macOS 剪贴板 (text/html)`,
     `  --help   显示帮助`,
   ].join(`\n`)
 }
@@ -35,6 +37,7 @@ export function parseArgs(argv) {
   const parsed = {
     file: null,
     style: null,
+    copy: false,
     help: false,
   }
 
@@ -43,6 +46,11 @@ export function parseArgs(argv) {
 
     if (current === `--help`) {
       parsed.help = true
+      continue
+    }
+
+    if (current === `--copy`) {
+      parsed.copy = true
       continue
     }
 
@@ -87,6 +95,10 @@ export async function run(argv) {
     const html = await renderToWechatHtml(markdown, styleConfig)
 
     process.stdout.write(html)
+
+    if (args.copy) {
+      await copyHtmlToClipboard(html)
+    }
   }
   catch (error) {
     const message = error instanceof Error ? error.message : String(error)
