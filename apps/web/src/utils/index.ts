@@ -1,4 +1,4 @@
-import { markedAlert, MDKatex } from '@md/core'
+import { markedAlert, MDKatex, normalizeThemeCSSForCopy } from '@md/core'
 import { prefix } from '@md/shared/configs'
 // 直接导入供本文件内部使用
 import {
@@ -13,6 +13,18 @@ import {
 
 import juice from 'juice'
 import { Marked } from 'marked'
+
+const NUMERIC_VALUE_PATTERN = /^\d+$/
+const TOP_OFFSET_EM_PATTERN = /([^-])top:(.*?)em/g
+const FOREGROUND_HSL_PATTERN = /hsl\(var\(--foreground\)\)/g
+const BLOCKQUOTE_BACKGROUND_PATTERN = /var\(--blockquote-background\)/g
+const PRIMARY_COLOR_USAGE_PATTERN = /var\(--md-primary-color\)/g
+const PRIMARY_COLOR_DECLARATION_PATTERN = /--md-primary-color:.+?;/g
+const FONT_FAMILY_DECLARATION_PATTERN = /--md-font-family:.+?;/g
+const FONT_SIZE_DECLARATION_PATTERN = /--md-font-size:.+?;/g
+const NODE_LABEL_PARAGRAPH_PATTERN = /<span class="nodeLabel"([^>]*)><p[^>]*>(.*?)<\/p><\/span>/g
+const EDGE_LABEL_PARAGRAPH_PATTERN = /<span class="edgeLabel"([^>]*)><p[^>]*>(.*?)<\/p><\/span>/g
+const TSPAN_PATTERN = /<tspan([^>]*)>/g
 
 export {
   LocalStorageEngine as LocalEngine,
@@ -192,21 +204,22 @@ export async function exportPDF(title: string = `untitled`) {
 export function solveWeChatImage() {
   const clipboardDiv = document.getElementById(`output`)!
   const images = clipboardDiv.getElementsByTagName(`img`)
+  const imageList = [...images]
 
-  Array.from(images).forEach((image) => {
+  imageList.forEach((image) => {
     const width = image.getAttribute(`width`)
     const height = image.getAttribute(`height`)
 
     if (width) {
       image.removeAttribute(`width`)
       // 如果是纯数字，添加 px 单位；否则保持原值
-      image.style.width = /^\d+$/.test(width) ? `${width}px` : width
+      image.style.width = NUMERIC_VALUE_PATTERN.test(width) ? `${width}px` : width
     }
 
     if (height) {
       image.removeAttribute(`height`)
       // 如果是纯数字，添加 px 单位；否则保持原值
-      image.style.height = /^\d+$/.test(height) ? `${height}px` : height
+      image.style.height = NUMERIC_VALUE_PATTERN.test(height) ? `${height}px` : height
     }
   })
 }
@@ -235,18 +248,7 @@ function getThemeStyles(): string {
     return ``
   }
 
-  // 移除 #output 作用域前缀，因为复制后的 HTML 不在 #output 容器中
-  let cssContent = themeStyle.textContent
-
-  // 处理 #output {} 为 body {}，避免出现 {} 无效样式
-  cssContent = cssContent.replace(/#output\s*\{/g, 'body {')
-
-  // 将 "#output h1" 替换为 "h1"，"#output .class" 替换为 ".class" 等
-  // 同时处理换行和多个空格的情况
-  cssContent = cssContent.replace(/#output\s+/g, '')
-  // 处理选择器开头的 #output（如果没有后续内容）
-  cssContent = cssContent.replace(/^#output\s*/gm, '')
-
+  const cssContent = normalizeThemeCSSForCopy(themeStyle.textContent)
   const styleContent = `<style>${cssContent}</style>`
   return styleContent
 }
@@ -306,19 +308,19 @@ export async function processClipboardContent(primaryColor: string) {
 
   // 处理样式和颜色变量
   clipboardDiv.innerHTML = clipboardDiv.innerHTML
-    .replace(/([^-])top:(.*?)em/g, `$1transform: translateY($2em)`)
-    .replace(/hsl\(var\(--foreground\)\)/g, `#3f3f3f`)
-    .replace(/var\(--blockquote-background\)/g, `#f7f7f7`)
-    .replace(/var\(--md-primary-color\)/g, primaryColor)
-    .replace(/--md-primary-color:.+?;/g, ``)
-    .replace(/--md-font-family:.+?;/g, ``)
-    .replace(/--md-font-size:.+?;/g, ``)
+    .replace(TOP_OFFSET_EM_PATTERN, `$1transform: translateY($2em)`)
+    .replace(FOREGROUND_HSL_PATTERN, `#3f3f3f`)
+    .replace(BLOCKQUOTE_BACKGROUND_PATTERN, `#f7f7f7`)
+    .replace(PRIMARY_COLOR_USAGE_PATTERN, primaryColor)
+    .replace(PRIMARY_COLOR_DECLARATION_PATTERN, ``)
+    .replace(FONT_FAMILY_DECLARATION_PATTERN, ``)
+    .replace(FONT_SIZE_DECLARATION_PATTERN, ``)
     .replace(
-      /<span class="nodeLabel"([^>]*)><p[^>]*>(.*?)<\/p><\/span>/g,
+      NODE_LABEL_PARAGRAPH_PATTERN,
       `<span class="nodeLabel"$1>$2</span>`,
     )
     .replace(
-      /<span class="edgeLabel"([^>]*)><p[^>]*>(.*?)<\/p><\/span>/g,
+      EDGE_LABEL_PARAGRAPH_PATTERN,
       `<span class="edgeLabel"$1>$2</span>`,
     )
 
@@ -351,7 +353,7 @@ export async function processClipboardContent(primaryColor: string) {
   // fix: mermaid 部分文本颜色被 stroke 覆盖
   clipboardDiv.innerHTML = clipboardDiv.innerHTML
     .replace(
-      /<tspan([^>]*)>/g,
+      TSPAN_PATTERN,
       `<tspan$1 style="fill: #333333 !important; color: #333333 !important; stroke: none !important;">`,
     )
 

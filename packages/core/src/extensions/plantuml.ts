@@ -6,6 +6,20 @@ import { simpleHash } from '../utils/basicHelpers'
 const svgCache = new Map<string, string>()
 // 上一次渲染的结果（用于在新渲染完成前显示旧图片）
 let lastRenderedSvg: string | null = null
+const BASE64_PLUS_PATTERN = /\+/g
+const BASE64_SLASH_PATTERN = /\//g
+const BASE64_EQUALS_PATTERN = /=/g
+const CAMEL_CASE_BOUNDARY_PATTERN = /([A-Z])/g
+const SVG_WIDTH_ATTRIBUTE_PATTERN = /(<svg[^>]*)\swidth="[^"]*"/g
+const SVG_HEIGHT_ATTRIBUTE_PATTERN = /(<svg[^>]*)\sheight="[^"]*"/g
+const SVG_WIDTH_STYLE_PATTERN = /(<svg[^>]*style="[^"]*?)width:[^;]*;?/g
+const SVG_HEIGHT_STYLE_PATTERN = /(<svg[^>]*style="[^"]*?)height:[^;]*;?/g
+const PLANTUML_START_PATTERN = /^```plantuml/m
+const PLANTUML_FENCE_PATTERN = /^```plantuml\r?\n([\s\S]*?)\r?\n```/
+
+function toInlineCssPropertyName(key: string): string {
+  return key.replace(CAMEL_CASE_BOUNDARY_PATTERN, `-$1`).toLowerCase()
+}
 
 export interface PlantUMLOptions {
   /**
@@ -138,7 +152,7 @@ function encodePlantUML(plantumlCode: string): string {
     console.warn(`PlantUML encoding failed, using fallback:`, error)
     const utf8Bytes = new TextEncoder().encode(plantumlCode)
     const base64 = btoa(String.fromCharCode(...utf8Bytes))
-    return `~1${base64.replace(/\+/g, `-`).replace(/\//g, `_`).replace(/=/g, ``)}`
+    return `~1${base64.replace(BASE64_PLUS_PATTERN, `-`).replace(BASE64_SLASH_PATTERN, `_`).replace(BASE64_EQUALS_PATTERN, ``)}`
   }
 }
 
@@ -166,6 +180,10 @@ function renderPlantUMLDiagram(token: Tokens.Code, options: Required<PlantUMLOpt
 
   // 如果启用了内嵌SVG且格式是SVG
   if (options.inlineSvg && options.format === `svg`) {
+    if (typeof document === `undefined`) {
+      return createPlantUMLHTML(imageUrl, options)
+    }
+
     const placeholder = `plantuml-${cacheKey}`
 
     // 异步获取SVG内容并替换
@@ -181,7 +199,7 @@ function renderPlantUMLDiagram(token: Tokens.Code, options: Required<PlantUMLOpt
 
     const containerStyles = options.styles.container
       ? Object.entries(options.styles.container)
-          .map(([key, value]) => `${key.replace(/([A-Z])/g, `-$1`).toLowerCase()}: ${value}`)
+          .map(([key, value]) => `${toInlineCssPropertyName(key)}: ${value}`)
           .join(`; `)
       : ``
 
@@ -211,11 +229,11 @@ async function fetchSvgContent(svgUrl: string): Promise<string> {
     // 移除SVG根元素的固定尺寸，使其响应式
     return svgContent
       // 移除width和height属性
-      .replace(/(<svg[^>]*)\swidth="[^"]*"/g, `$1`)
-      .replace(/(<svg[^>]*)\sheight="[^"]*"/g, `$1`)
+      .replace(SVG_WIDTH_ATTRIBUTE_PATTERN, `$1`)
+      .replace(SVG_HEIGHT_ATTRIBUTE_PATTERN, `$1`)
       // 移除style中的width和height
-      .replace(/(<svg[^>]*style="[^"]*?)width:[^;]*;?/g, `$1`)
-      .replace(/(<svg[^>]*style="[^"]*?)height:[^;]*;?/g, `$1`)
+      .replace(SVG_WIDTH_STYLE_PATTERN, `$1`)
+      .replace(SVG_HEIGHT_STYLE_PATTERN, `$1`)
   }
   catch (error) {
     console.warn(`Failed to fetch SVG content from ${svgUrl}:`, error)
@@ -229,7 +247,7 @@ async function fetchSvgContent(svgUrl: string): Promise<string> {
 function createPlantUMLHTML(imageUrl: string, options: Required<PlantUMLOptions>, svgContent?: string): string {
   const containerStyles = options.styles.container
     ? Object.entries(options.styles.container)
-        .map(([key, value]) => `${key.replace(/([A-Z])/g, `-$1`).toLowerCase()}: ${value}`)
+        .map(([key, value]) => `${toInlineCssPropertyName(key)}: ${value}`)
         .join(`; `)
     : ``
 
@@ -272,11 +290,11 @@ export function markedPlantUML(options: PlantUMLOptions = {}): MarkedExtension {
         level: `block`,
         start(src: string) {
           // 匹配 ```plantuml 代码块
-          return src.match(/^```plantuml/m)?.index
+          return src.match(PLANTUML_START_PATTERN)?.index
         },
         tokenizer(src: string) {
           // 匹配完整的 plantuml 代码块
-          const match = /^```plantuml\r?\n([\s\S]*?)\r?\n```/.exec(src)
+          const match = PLANTUML_FENCE_PATTERN.exec(src)
 
           if (match) {
             const [raw, code] = match
