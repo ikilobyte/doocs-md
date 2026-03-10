@@ -5,6 +5,18 @@ import { simpleHash } from '../utils/basicHelpers'
 const svgCache = new Map<string, string>()
 // 上一次渲染的结果（用于在新渲染完成前显示旧图片）
 let lastRenderedSvg: string | null = null
+const MERMAID_START_PATTERN = /^```mermaid/m
+const MERMAID_FENCE_PATTERN = /^```mermaid\r?\n([\s\S]*?)\r?\n```/
+
+function escapeHtml(text: string): string {
+  return text
+    .split(`&`)
+    .join(`&amp;`)
+    .split(`<`)
+    .join(`&lt;`)
+    .split(`>`)
+    .join(`&gt;`)
+}
 
 function renderMermaid(id: string, code: string, cacheKey: string) {
   if (typeof window === 'undefined')
@@ -53,10 +65,10 @@ export function markedMermaid(): MarkedExtension {
         name: 'mermaid',
         level: 'block',
         start(src: string) {
-          return src.match(/^```mermaid/m)?.index
+          return src.match(MERMAID_START_PATTERN)?.index
         },
         tokenizer(src: string) {
-          const match = /^```mermaid\r?\n([\s\S]*?)\r?\n```/.exec(src)
+          const match = MERMAID_FENCE_PATTERN.exec(src)
           if (match) {
             return {
               type: 'mermaid',
@@ -68,6 +80,10 @@ export function markedMermaid(): MarkedExtension {
         renderer(token: any) {
           const code = token.text
           const cacheKey = simpleHash(code)
+
+          if (typeof window === `undefined`) {
+            return `<!--mermaid-start--><pre class="hljs code__pre"><code class="language-mermaid">${escapeHtml(code)}</code></pre><!--mermaid-end-->`
+          }
 
           // 有缓存直接返回
           const cached = svgCache.get(cacheKey)

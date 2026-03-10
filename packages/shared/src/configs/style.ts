@@ -1,5 +1,5 @@
 import type { IConfigOption } from '../types'
-import { themeOptions } from './theme'
+import { themeOptions } from './theme-options'
 
 export const fontFamilyOptions: IConfigOption[] = [
   {

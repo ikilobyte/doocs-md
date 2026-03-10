@@ -80,6 +80,7 @@ function getAllStoreStates() {
     isCountStatus: themeStore.isCountStatus,
     isUseIndent: themeStore.isUseIndent,
     isUseJustify: themeStore.isUseJustify,
+    headingStyles: themeStore.headingStyles,
 
     // Post store 的状态
     currentPostId: postStore.currentPostId,
@@ -208,7 +209,7 @@ function handleFileImport(event: Event) {
       }
 
       // 过滤导入的数据项，只接受允许的项，与getLable函数对应
-      const allowedKeys = Object.keys(storeStates.value.data).concat(Object.keys(importStates.value.data))
+      const allowedKeys = [...Object.keys(storeStates.value.data), ...Object.keys(importStates.value.data)]
       const filteredData = Object.keys(importedData).reduce((acc, key) => {
         if (allowedKeys.includes(key)) {
           acc[key] = importedData[key]
@@ -286,6 +287,8 @@ function applyImportedConfig() {
         themeStore.isUseIndent = value
       else if (key === `isUseJustify`)
         themeStore.isUseJustify = value
+      else if (key === `headingStyles`)
+        themeStore.headingStyles = value
 
       // Post store 的状态
       else if (key === `currentPostId`)

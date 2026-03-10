@@ -11,6 +11,8 @@ import { wrapCSSWithScope } from './cssScopeWrapper'
 import { generateCSSVariables, generateHeadingStyles } from './cssVariables'
 import { getThemeInjector } from './themeInjector'
 
+const REGEX_ESCAPE_PATTERN = /[.*+?^${}()|[\]\\]/g
+
 export interface ThemeConfig {
   themeName: string // 主题名称
   customCSS?: string // 用户自定义 CSS
@@ -18,10 +20,10 @@ export interface ThemeConfig {
 }
 
 /**
- * 应用主题
+ * 构建主题 CSS
  * @param config - 主题配置
  */
-export async function applyTheme(config: ThemeConfig): Promise<void> {
+export async function buildThemeCSS(config: ThemeConfig): Promise<string> {
   // 1. 生成 CSS 变量
   const variablesCSS = generateCSSVariables(config.variables)
 
@@ -48,7 +50,7 @@ export async function applyTheme(config: ThemeConfig): Promise<void> {
     : ``
 
   // 7. 拼接完整 CSS（用户自定义 CSS 在最后，优先级最高）
-  let mergedCSS = [
+  const mergedCSS = [
     variablesCSS, // CSS 变量（全局）
     baseCSSContent, // 基础样式（全局）
     scopedThemeCSS, // 主题样式（限制在 #output）
@@ -57,7 +59,39 @@ export async function applyTheme(config: ThemeConfig): Promise<void> {
   ].filter(Boolean).join(`\n\n`)
 
   // 7. 使用 PostCSS 处理 CSS（简化 calc() 表达式等）
-  mergedCSS = await processCSS(mergedCSS)
+  return processCSS(mergedCSS)
+}
+
+/**
+ * 移除预览作用域，用于导出或复制后的 HTML
+ * @param cssContent - 原始主题 CSS
+ * @param scopeSelector - 预览作用域
+ * @param rootSelector - 导出根选择器
+ */
+export function normalizeThemeCSSForCopy(
+  cssContent: string,
+  scopeSelector: string = `#output`,
+  rootSelector: string = `body`,
+): string {
+  let normalizedCSS = cssContent
+
+  const escapedScopeSelector = scopeSelector.replace(REGEX_ESCAPE_PATTERN, `\\$&`)
+  const scopeRegex = new RegExp(escapedScopeSelector, `g`)
+
+  normalizedCSS = normalizedCSS.replace(new RegExp(`${escapedScopeSelector}\\s*\\{`, `g`), `${rootSelector} {`)
+  normalizedCSS = normalizedCSS.replace(new RegExp(`${escapedScopeSelector}\\s+`, `g`), ``)
+  normalizedCSS = normalizedCSS.replace(new RegExp(`^${escapedScopeSelector}\\s*`, `gm`), ``)
+  normalizedCSS = normalizedCSS.replace(scopeRegex, rootSelector)
+
+  return normalizedCSS
+}
+
+/**
+ * 应用主题
+ * @param config - 主题配置
+ */
+export async function applyTheme(config: ThemeConfig): Promise<void> {
+  const mergedCSS = await buildThemeCSS(config)
 
   // 8. 注入到页面
   const injector = getThemeInjector()

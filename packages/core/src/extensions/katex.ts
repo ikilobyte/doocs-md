@@ -12,10 +12,38 @@ const blockRule = /^\s{0,3}(\${1,2})[ \t]*\n([\s\S]+?)\n\s{0,3}\1[ \t]*(?:\n|$)/
 // LaTeX style rules for \( ... \) and \[ ... \]
 const inlineLatexRule = /^\\\(([^\\]*(?:\\.[^\\]*)*?)\\\)/
 const blockLatexRule = /^\\\[([^\\]*(?:\\.[^\\]*)*?)\\\]/
+const LEADING_DOLLARS_PATTERN = /^\$+/
+
+function escapeHtml(text: string): string {
+  return text
+    .split(`&`)
+    .join(`&amp;`)
+    .split(`<`)
+    .join(`&lt;`)
+    .split(`>`)
+    .join(`&gt;`)
+    .split(`"`)
+    .join(`&quot;`)
+    .split(`'`)
+    .join(`&#39;`)
+}
+
+function renderFallback(text: string, display: boolean): string {
+  const escapedText = escapeHtml(text)
+  if (display) {
+    return `<section class="katex-block"><code>${escapedText}</code></section>`
+  }
+  return `<span class="katex-inline"><code>${escapedText}</code></span>`
+}
 
 function createRenderer(defaultDisplay: boolean, withStyle: boolean = true) {
   return (token: any) => {
     const display = token.displayMode ?? defaultDisplay
+
+    // 在无浏览器环境或 MathJax 未注入时，优雅降级，避免整个渲染流程失败。
+    if (typeof window === `undefined` || !(window as any).MathJax) {
+      return renderFallback(token.text, display)
+    }
 
     // @ts-expect-error MathJax is a global variable
     window.MathJax.texReset()
@@ -69,7 +97,7 @@ function inlineKatex(options: MarkedKatexOptions | undefined, renderer: any) {
           }
         }
 
-        indexSrc = indexSrc.substring(index + 1).replace(/^\$+/, ``)
+        indexSrc = indexSrc.substring(index + 1).replace(LEADING_DOLLARS_PATTERN, ``)
       }
     },
     tokenizer(src: string) {

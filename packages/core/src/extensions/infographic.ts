@@ -9,6 +9,18 @@ interface InfographicOptions {
 const svgCache = new Map<string, string>()
 // 上一次渲染的结果（用于在新渲染完成前显示旧图片）
 let lastRenderedSvg: string | null = null
+const INFOGRAPHIC_START_PATTERN = /^```infographic/m
+const INFOGRAPHIC_FENCE_PATTERN = /^```infographic\r?\n([\s\S]*?)\r?\n```/
+
+function escapeHtml(text: string): string {
+  return text
+    .split(`&`)
+    .join(`&amp;`)
+    .split(`<`)
+    .join(`&lt;`)
+    .split(`>`)
+    .join(`&gt;`)
+}
 
 async function renderInfographic(containerId: string, code: string, cacheKey: string, options?: InfographicOptions) {
   if (typeof window === 'undefined')
@@ -72,7 +84,7 @@ async function renderInfographic(containerId: string, code: string, cacheKey: st
       }
 
       if (retries > 0) {
-        setTimeout(() => findContainer(retries - 1, delay), delay)
+        setTimeout(findContainer, delay, retries - 1, delay)
       }
     }
 
@@ -96,10 +108,10 @@ export function markedInfographic(options?: InfographicOptions): MarkedExtension
         name: 'infographic',
         level: 'block',
         start(src: string) {
-          return src.match(/^```infographic/m)?.index
+          return src.match(INFOGRAPHIC_START_PATTERN)?.index
         },
         tokenizer(src: string) {
-          const match = /^```infographic\r?\n([\s\S]*?)\r?\n```/.exec(src)
+          const match = INFOGRAPHIC_FENCE_PATTERN.exec(src)
           if (match) {
             return {
               type: 'infographic',
@@ -111,6 +123,10 @@ export function markedInfographic(options?: InfographicOptions): MarkedExtension
         renderer(token: any) {
           const code = token.text
           const cacheKey = simpleHash(`${code}-${options?.themeMode || 'light'}`)
+
+          if (typeof window === `undefined`) {
+            return `<!--infographic-start--><pre class="hljs code__pre"><code class="language-infographic">${escapeHtml(code)}</code></pre><!--infographic-end-->`
+          }
 
           // 有缓存直接返回
           const cached = svgCache.get(cacheKey)
