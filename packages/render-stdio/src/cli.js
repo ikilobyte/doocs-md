@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import process from 'node:process'
 import { copyHtmlToClipboard } from './clipboard/index.js'
@@ -12,11 +12,12 @@ const SUPPORTED_COMMANDS = new Set([`render`, `upload-draft`])
 function usage(command = null) {
   if (command === `render`) {
     return [
-      `Usage: md-stdio render --file /path/to/article.md [--style /path/to/style.json] [--copy]`,
+      `Usage: md-stdio render --file /path/to/article.md [--style /path/to/style.json] [--output /path/to/output.html] [--copy]`,
       ``,
       `Options:`,
       `  --file   Markdown 文件路径`,
       `  --style  样式配置 JSON 路径`,
+      `  --output 输出 HTML 文件路径；传入后不再写入 stdout`,
       `  --copy   复制最终 HTML 到 macOS 剪贴板 (text/html)`,
       `  --help   显示帮助`,
     ].join(`\n`)
@@ -37,11 +38,11 @@ function usage(command = null) {
 
   return [
     `Usage:`,
-    `  md-stdio render --file /path/to/article.md [--style /path/to/style.json] [--copy]`,
+    `  md-stdio render --file /path/to/article.md [--style /path/to/style.json] [--output /path/to/output.html] [--copy]`,
     `  md-stdio upload-draft --filepath /path/to/rendered.html (--access-token TOKEN | --appid APPID --secret SECRET)`,
     ``,
     `Legacy usage remains supported:`,
-    `  md-stdio --file /path/to/article.md [--style /path/to/style.json] [--copy]`,
+    `  md-stdio --file /path/to/article.md [--style /path/to/style.json] [--output /path/to/output.html] [--copy]`,
     `  md-stdio --file /path/to/article.md --draft --appid APPID --secret SECRET`,
     `  md-stdio --file /path/to/article.md --draft --access-token TOKEN`,
   ].join(`\n`)
@@ -85,6 +86,7 @@ function parseRenderArgs(argv) {
     copy: false,
     file: null,
     help: false,
+    output: null,
     style: null,
   }
 
@@ -112,6 +114,14 @@ function parseRenderArgs(argv) {
     if (current === `--style` || current.startsWith(`--style=`)) {
       parsed.style = resolve(readOptionValue(argv, index, `--style`))
       if (current === `--style`) {
+        index += 1
+      }
+      continue
+    }
+
+    if (current === `--output` || current.startsWith(`--output=`)) {
+      parsed.output = resolve(readOptionValue(argv, index, `--output`))
+      if (current === `--output`) {
         index += 1
       }
       continue
@@ -200,6 +210,7 @@ function parseLegacyArgs(argv) {
     draft: false,
     file: null,
     help: false,
+    output: null,
     secret: null,
     style: null,
   }
@@ -233,6 +244,14 @@ function parseLegacyArgs(argv) {
     if (current === `--style` || current.startsWith(`--style=`)) {
       parsed.style = resolve(readOptionValue(argv, index, `--style`))
       if (current === `--style`) {
+        index += 1
+      }
+      continue
+    }
+
+    if (current === `--output` || current.startsWith(`--output=`)) {
+      parsed.output = resolve(readOptionValue(argv, index, `--output`))
+      if (current === `--output`) {
         index += 1
       }
       continue
@@ -273,6 +292,10 @@ function parseLegacyArgs(argv) {
     throw new Error(`--draft 与 --copy 不能同时使用`)
   }
 
+  if (parsed.draft && parsed.output) {
+    throw new Error(`--draft 与 --output 不能同时使用`)
+  }
+
   if (!parsed.help && parsed.draft) {
     parseAuthOptions(parsed, `--draft`)
   }
@@ -301,7 +324,7 @@ async function renderMarkdownFile(filePath, stylePath) {
   const markdown = await readFile(filePath, `utf8`)
   const mdModules = await loadMdModules()
   const styleConfig = await loadStyleConfig(stylePath, mdModules)
-  return renderToWechatHtml(markdown, styleConfig)
+  return renderToWechatHtml(markdown, styleConfig, { contentFilePath: filePath })
 }
 
 export async function run(argv) {
@@ -340,7 +363,12 @@ export async function run(argv) {
       return
     }
 
-    process.stdout.write(html)
+    if (args.output) {
+      await writeFile(args.output, html, `utf8`)
+    }
+    else {
+      process.stdout.write(html)
+    }
 
     if (args.copy) {
       await copyHtmlToClipboard(html)

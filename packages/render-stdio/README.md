@@ -9,12 +9,17 @@ Render Markdown into the final WeChat HTML fragment, or upload rendered HTML int
 ```bash
 pnpm --filter @md/render-stdio render -- render --file /path/to/article.md
 pnpm --filter @md/render-stdio render -- render --file /path/to/article.md --style /path/to/style.json
+pnpm --filter @md/render-stdio render -- render --file /path/to/article.md --output /path/to/rendered.html
 pnpm --filter @md/render-stdio render -- render --file /path/to/article.md --style /path/to/style.json --copy
 ```
 
 `render` writes the final HTML fragment to `stdout`.
 
-Pass `--copy` to also copy the final HTML fragment to the macOS clipboard as `text/html` while still writing the same content to `stdout`.
+Pass `--output` to write the final HTML fragment directly to a file instead of `stdout`.
+
+Pass `--copy` to also copy the final HTML fragment to the macOS clipboard as `text/html`. If `--output` is omitted, the same HTML is still written to `stdout`.
+
+Local relative image sources in the Markdown are rewritten to absolute filesystem paths based on the source `.md` file location before the final HTML is written.
 
 ### Upload Draft
 
@@ -41,6 +46,7 @@ The old invocation style is still available:
 
 ```bash
 pnpm --filter @md/render-stdio render -- --file /path/to/article.md --style /path/to/style.json
+pnpm --filter @md/render-stdio render -- --file /path/to/article.md --output /path/to/rendered.html
 pnpm --filter @md/render-stdio render -- --file /path/to/article.md --copy
 pnpm --filter @md/render-stdio render -- --file /path/to/article.md --draft --access-token YOUR_ACCESS_TOKEN
 pnpm --filter @md/render-stdio render -- --file /path/to/article.md --draft --appid YOUR_APPID --secret YOUR_SECRET
