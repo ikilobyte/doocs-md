@@ -1,4 +1,5 @@
 import { loadMdModules } from './core-loader.js'
+import { rewriteRelativeImageSources } from './image-paths.js'
 import { buildThemeCSS, normalizeThemeCSSForCopy } from './theme-service.js'
 import { buildWechatHtml } from './wechat-html.js'
 
@@ -45,7 +46,9 @@ function normalizeUndefinedStyleValues(html, styleConfig) {
     .replace(UNDEFINED_VALUE_REGEX, `: ${styleConfig.primaryColor};`)
 }
 
-export async function renderToWechatHtml(markdown, styleConfig) {
+export async function renderToWechatHtml(markdown, styleConfig, {
+  contentFilePath,
+} = {}) {
   const {
     markdownHelpers: {
       postProcessHtml,
@@ -93,5 +96,6 @@ export async function renderToWechatHtml(markdown, styleConfig) {
     headingStyles: styleConfig.headingStyles,
   })
 
-  return normalizeUndefinedStyleValues(html, styleConfig)
+  const normalizedHtml = normalizeUndefinedStyleValues(html, styleConfig)
+  return rewriteRelativeImageSources(normalizedHtml, contentFilePath)
 }
