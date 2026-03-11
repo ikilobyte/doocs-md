@@ -1,0 +1,12 @@
+wechat:
+  app_id: your-appid
+  app_secret: your-app-secret
+  use_stable_ak: true
+
+cache:
+  access_token_file: .cache/wechat/access_token.json
+
+draft:
+  show_cover_pic: 0
+  need_open_comment: 0
+  only_fans_can_comment: 0
